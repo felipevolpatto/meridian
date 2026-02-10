@@ -305,24 +305,23 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) == 0 {
+	resourceName, nestedInfo := ExtractResourceInfo(path, pathParams)
+	if resourceName == "" {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
-	resourceName := parts[0]
 
 	switch method {
 	case http.MethodGet:
-		s.handleGet(w, r, resourceName, pathParams)
+		s.handleGet(w, r, resourceName, pathParams, nestedInfo)
 	case http.MethodPost:
-		s.handlePost(w, r, resourceName)
+		s.handlePost(w, r, resourceName, nestedInfo)
 	case http.MethodPut:
-		s.handlePut(w, r, resourceName, pathParams)
+		s.handlePut(w, r, resourceName, pathParams, nestedInfo)
 	case http.MethodDelete:
-		s.handleDelete(w, r, resourceName, pathParams)
+		s.handleDelete(w, r, resourceName, pathParams, nestedInfo)
 	case http.MethodPatch:
-		s.handlePatch(w, r, resourceName, pathParams)
+		s.handlePatch(w, r, resourceName, pathParams, nestedInfo)
 	}
 }
 
@@ -330,13 +329,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
-func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string) {
-	resourceID := pathParams["id"]
-	if resourceID == "" {
-		for key, value := range pathParams {
-			if strings.HasSuffix(strings.ToLower(key), "id") {
-				resourceID = value
-				break
+func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string, nestedInfo *NestedResourceInfo) {
+	// For nested resources, use the child ID if present
+	var resourceID string
+	if nestedInfo.IsNested && nestedInfo.ChildID != "" {
+		resourceID = nestedInfo.ChildID
+	} else {
+		resourceID = pathParams["id"]
+		if resourceID == "" {
+			for key, value := range pathParams {
+				if strings.HasSuffix(strings.ToLower(key), "id") && key != nestedInfo.ParentIDParam {
+					resourceID = value
+					break
+				}
 			}
 		}
 	}
@@ -350,6 +355,11 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, resourceName 
 
 		if data == nil {
 			data = []interface{}{}
+		}
+
+		// Filter by parent ID for nested resources
+		if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+			data = s.filterByParentID(data, nestedInfo)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -368,11 +378,69 @@ func (s *Server) handleGet(w http.ResponseWriter, r *http.Request, resourceName 
 		return
 	}
 
+	// Verify the resource belongs to the parent for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		if !s.belongsToParent(data, nestedInfo) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Resource not found",
+				"code":  "not_found",
+			})
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
 
-func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, resourceName string) {
+// filterByParentID filters a list of resources by parent ID
+func (s *Server) filterByParentID(data []interface{}, nestedInfo *NestedResourceInfo) []interface{} {
+	if nestedInfo == nil || !nestedInfo.IsNested || nestedInfo.ParentID == "" {
+		return data
+	}
+
+	filtered := make([]interface{}, 0)
+	for _, item := range data {
+		if s.belongsToParent(item, nestedInfo) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// belongsToParent checks if a resource belongs to the specified parent
+func (s *Server) belongsToParent(item interface{}, nestedInfo *NestedResourceInfo) bool {
+	if nestedInfo == nil || !nestedInfo.IsNested || nestedInfo.ParentID == "" {
+		return true
+	}
+
+	obj, ok := item.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	// Check common foreign key patterns
+	foreignKeyFields := []string{
+		nestedInfo.ForeignKeyField,
+		nestedInfo.ParentResource + "_id",
+		nestedInfo.ParentResource + "Id",
+		nestedInfo.ParentIDParam,
+	}
+
+	for _, field := range foreignKeyFields {
+		if val, exists := obj[field]; exists {
+			if fmt.Sprintf("%v", val) == nestedInfo.ParentID {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, resourceName string, nestedInfo *NestedResourceInfo) {
 	var data map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -388,6 +456,11 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, resourceName
 		data["id"] = fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 
+	// Automatically set foreign key for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		data[nestedInfo.ForeignKeyField] = nestedInfo.ParentID
+	}
+
 	if err := s.stateManager.AddResource(resourceName, data); err != nil {
 		http.Error(w, fmt.Sprintf("failed to add resource: %v", err), http.StatusInternalServerError)
 		return
@@ -398,13 +471,18 @@ func (s *Server) handlePost(w http.ResponseWriter, r *http.Request, resourceName
 	json.NewEncoder(w).Encode(data)
 }
 
-func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string) {
-	resourceID := pathParams["id"]
-	if resourceID == "" {
-		for key, value := range pathParams {
-			if strings.HasSuffix(strings.ToLower(key), "id") {
-				resourceID = value
-				break
+func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string, nestedInfo *NestedResourceInfo) {
+	var resourceID string
+	if nestedInfo.IsNested && nestedInfo.ChildID != "" {
+		resourceID = nestedInfo.ChildID
+	} else {
+		resourceID = pathParams["id"]
+		if resourceID == "" {
+			for key, value := range pathParams {
+				if strings.HasSuffix(strings.ToLower(key), "id") && key != nestedInfo.ParentIDParam {
+					resourceID = value
+					break
+				}
 			}
 		}
 	}
@@ -419,6 +497,20 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, resourceName 
 		return
 	}
 
+	// Verify the resource belongs to the parent for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		existing, err := s.stateManager.GetResource(resourceName, resourceID)
+		if err == nil && !s.belongsToParent(existing, nestedInfo) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Resource not found",
+				"code":  "not_found",
+			})
+			return
+		}
+	}
+
 	var data map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -431,6 +523,11 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, resourceName 
 	}
 
 	data["id"] = resourceID
+
+	// Preserve foreign key for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		data[nestedInfo.ForeignKeyField] = nestedInfo.ParentID
+	}
 
 	if err := s.stateManager.UpdateResource(resourceName, resourceID, data); err != nil {
 		if err.Error() == "resource not found" {
@@ -450,13 +547,18 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request, resourceName 
 	json.NewEncoder(w).Encode(data)
 }
 
-func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string) {
-	resourceID := pathParams["id"]
-	if resourceID == "" {
-		for key, value := range pathParams {
-			if strings.HasSuffix(strings.ToLower(key), "id") {
-				resourceID = value
-				break
+func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string, nestedInfo *NestedResourceInfo) {
+	var resourceID string
+	if nestedInfo.IsNested && nestedInfo.ChildID != "" {
+		resourceID = nestedInfo.ChildID
+	} else {
+		resourceID = pathParams["id"]
+		if resourceID == "" {
+			for key, value := range pathParams {
+				if strings.HasSuffix(strings.ToLower(key), "id") && key != nestedInfo.ParentIDParam {
+					resourceID = value
+					break
+				}
 			}
 		}
 	}
@@ -482,6 +584,19 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, resourceNam
 		return
 	}
 
+	// Verify the resource belongs to the parent for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		if !s.belongsToParent(existing, nestedInfo) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Resource not found",
+				"code":  "not_found",
+			})
+			return
+		}
+	}
+
 	var patchData map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&patchData); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -503,6 +618,11 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, resourceNam
 		existingMap[key] = value
 	}
 
+	// Preserve foreign key for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		existingMap[nestedInfo.ForeignKeyField] = nestedInfo.ParentID
+	}
+
 	if err := s.stateManager.UpdateResource(resourceName, resourceID, existingMap); err != nil {
 		http.Error(w, fmt.Sprintf("failed to update resource: %v", err), http.StatusInternalServerError)
 		return
@@ -512,13 +632,18 @@ func (s *Server) handlePatch(w http.ResponseWriter, r *http.Request, resourceNam
 	json.NewEncoder(w).Encode(existingMap)
 }
 
-func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string) {
-	resourceID := pathParams["id"]
-	if resourceID == "" {
-		for key, value := range pathParams {
-			if strings.HasSuffix(strings.ToLower(key), "id") {
-				resourceID = value
-				break
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, resourceName string, pathParams map[string]string, nestedInfo *NestedResourceInfo) {
+	var resourceID string
+	if nestedInfo.IsNested && nestedInfo.ChildID != "" {
+		resourceID = nestedInfo.ChildID
+	} else {
+		resourceID = pathParams["id"]
+		if resourceID == "" {
+			for key, value := range pathParams {
+				if strings.HasSuffix(strings.ToLower(key), "id") && key != nestedInfo.ParentIDParam {
+					resourceID = value
+					break
+				}
 			}
 		}
 	}
@@ -531,6 +656,20 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, resourceNa
 			"code":  "missing_id",
 		})
 		return
+	}
+
+	// Verify the resource belongs to the parent for nested resources
+	if nestedInfo.IsNested && nestedInfo.ParentID != "" {
+		existing, err := s.stateManager.GetResource(resourceName, resourceID)
+		if err == nil && !s.belongsToParent(existing, nestedInfo) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": "Resource not found",
+				"code":  "not_found",
+			})
+			return
+		}
 	}
 
 	if err := s.stateManager.DeleteResource(resourceName, resourceID); err != nil {

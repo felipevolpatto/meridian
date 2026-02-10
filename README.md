@@ -39,9 +39,10 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - **Web interface**: built-in UI for state inspection and API testing
 - **Advanced data generation**: pattern-based generation (regex), `oneOf`/`anyOf`/`allOf` support, semantic field detection
 
+- **Nested resources**: support for routes like `/users/{userId}/posts`
+
 ### In development
 
-- **Nested resources**: support for routes like `/users/{id}/posts`
 - **Auto seeding with relationships**: automatic seed data generation respecting referential integrity
 - **Hot reload**: `--watch` flag for automatic server restart on file changes
 - **WebSocket support**: real-time state updates
@@ -567,6 +568,60 @@ Meridian automatically creates REST endpoints for each path defined in your Open
 | PUT | `/{resource}/{id}` | Update an item |
 | PATCH | `/{resource}/{id}` | Partially update an item |
 | DELETE | `/{resource}/{id}` | Delete an item |
+
+### Nested resources
+
+Meridian supports nested resource routes for parent-child relationships:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/{parent}/{parentId}/{child}` | List child items for parent |
+| POST | `/{parent}/{parentId}/{child}` | Create child item (auto-sets foreign key) |
+| GET | `/{parent}/{parentId}/{child}/{childId}` | Get specific child item |
+| PUT | `/{parent}/{parentId}/{child}/{childId}` | Update child item |
+| PATCH | `/{parent}/{parentId}/{child}/{childId}` | Partially update child item |
+| DELETE | `/{parent}/{parentId}/{child}/{childId}` | Delete child item |
+
+**Example OpenAPI spec:**
+
+```yaml
+paths:
+  /users/{userId}/posts:
+    get:
+      summary: List posts for a user
+    post:
+      summary: Create a post for a user
+  /users/{userId}/posts/{postId}:
+    get:
+      summary: Get a specific post
+    put:
+      summary: Update a post
+    delete:
+      summary: Delete a post
+```
+
+**Behavior:**
+
+- Child resources are automatically filtered by parent ID
+- POST requests automatically set the foreign key field (e.g., `user_id`)
+- Accessing a child via the wrong parent returns 404
+- Foreign key field name is inferred from parent resource (e.g., `users` -> `user_id`)
+
+**Example requests:**
+
+```bash
+# Create a post for user 123
+curl -X POST http://localhost:8080/users/123/posts \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My Post", "content": "Hello World"}'
+# Response includes user_id: "123" automatically
+
+# List posts for user 123 only
+curl http://localhost:8080/users/123/posts
+
+# Get specific post (validates it belongs to user 123)
+curl http://localhost:8080/users/123/posts/456
+```
 
 ### Admin endpoints
 
