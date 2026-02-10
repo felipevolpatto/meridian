@@ -161,6 +161,90 @@ paths:
         '404':
           description: Owner not found
 
+  /owners/{ownerId}/pets:
+    parameters:
+      - name: ownerId
+        in: path
+        required: true
+        description: Owner ID
+        schema:
+          type: string
+    get:
+      summary: List pets for an owner
+      operationId: listOwnerPets
+      responses:
+        '200':
+          description: List of pets belonging to the owner
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+    post:
+      summary: Add a pet to an owner
+      operationId: createOwnerPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PetInput'
+      responses:
+        '201':
+          description: Pet added to owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+
+  /owners/{ownerId}/pets/{petId}:
+    parameters:
+      - name: ownerId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: petId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a specific pet of an owner
+      operationId: getOwnerPet
+      responses:
+        '200':
+          description: Pet details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          description: Pet not found
+    put:
+      summary: Update an owner's pet
+      operationId: updateOwnerPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PetInput'
+      responses:
+        '200':
+          description: Pet updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+    delete:
+      summary: Remove a pet from an owner
+      operationId: deleteOwnerPet
+      responses:
+        '204':
+          description: Pet removed
+
 components:
   schemas:
     Pet:

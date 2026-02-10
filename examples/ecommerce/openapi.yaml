@@ -257,16 +257,16 @@ paths:
         '404':
           description: Customer not found
 
-  /customers/{id}/orders:
+  /customers/{customerId}/orders:
     parameters:
-      - name: id
+      - name: customerId
         in: path
         required: true
         schema:
           type: string
     get:
-      summary: Get customer orders
-      operationId: getCustomerOrders
+      summary: List orders for a customer
+      operationId: listCustomerOrders
       responses:
         '200':
           description: Customer orders
@@ -276,6 +276,73 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Order'
+    post:
+      summary: Create an order for a customer
+      operationId: createCustomerOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /customers/{customerId}/orders/{orderId}:
+    parameters:
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get a specific order for a customer
+      operationId: getCustomerOrder
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+    patch:
+      summary: Update order status
+      operationId: updateCustomerOrderStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [pending, processing, shipped, delivered, cancelled]
+      responses:
+        '200':
+          description: Order updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+    delete:
+      summary: Cancel an order
+      operationId: cancelCustomerOrder
+      responses:
+        '204':
+          description: Order cancelled
 
 components:
   schemas:
