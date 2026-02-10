@@ -12,6 +12,7 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - [CLI reference](#cli-reference)
 - [API endpoints](#api-endpoints)
 - [Examples](#examples)
+- [Data generation](#data-generation)
 - [Validation](#validation)
 - [Web interface](#web-interface)
 - [Development](#development)
@@ -36,10 +37,10 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - **CORS support**: configurable cross-origin resource sharing
 - **Latency simulation**: add artificial delays to responses
 - **Web interface**: built-in UI for state inspection and API testing
+- **Advanced data generation**: pattern-based generation (regex), `oneOf`/`anyOf`/`allOf` support, semantic field detection
 
 ### In development
 
-- **Advanced data generation**: pattern-based generation (regex), `oneOf`/`anyOf`/`allOf` support, semantic field detection
 - **Nested resources**: support for routes like `/users/{id}/posts`
 - **Auto seeding with relationships**: automatic seed data generation respecting referential integrity
 - **Hot reload**: `--watch` flag for automatic server restart on file changes
@@ -617,6 +618,95 @@ meridian validate --spec examples/validation/openapi.yaml \
 ```
 
 See [examples/validation/README.md](examples/validation/README.md) for details.
+
+## Data generation
+
+Meridian generates realistic mock data based on your OpenAPI schema with advanced features.
+
+### Pattern-based generation
+
+When a schema includes a `pattern` property, Meridian generates strings that match the regex:
+
+```yaml
+properties:
+  sku:
+    type: string
+    pattern: "SKU-[A-Z]{3}-[0-9]{4}"
+  phone:
+    type: string
+    pattern: "\\+1-\\d{3}-\\d{3}-\\d{4}"
+```
+
+Generated values:
+- `sku`: `SKU-XYZ-1234`
+- `phone`: `+1-555-123-4567`
+
+Supported regex features:
+- Character classes: `[a-z]`, `[A-Z]`, `[0-9]`, `[^abc]`
+- Escape sequences: `\d`, `\w`, `\s`, `\D`, `\W`, `\S`
+- Quantifiers: `*`, `+`, `?`, `{n}`, `{n,m}`
+- Groups and alternation: `(a|b|c)`
+- Literals and escaped characters
+
+### Semantic field detection
+
+Meridian automatically detects field semantics based on naming and generates appropriate data:
+
+| Field pattern | Generated data |
+|---------------|----------------|
+| `email`, `email_address` | Valid email address |
+| `first_name`, `firstName` | Realistic first name |
+| `last_name`, `lastName` | Realistic last name |
+| `phone`, `phone_number` | Phone number |
+| `address`, `street` | Street address |
+| `city`, `state`, `country` | Location data |
+| `zip_code`, `postal_code` | Postal code |
+| `url`, `website` | Valid URL |
+| `username`, `login` | Username |
+| `price`, `amount` | Monetary value |
+| `age` | Age between 18-80 |
+| `created_at`, `updated_at` | ISO 8601 timestamp |
+| `avatar`, `image` | Image URL |
+| `latitude`, `longitude` | Geographic coordinates |
+| `currency` | Currency code (USD, EUR, etc.) |
+| `ip_address` | IPv4 address |
+| `sku`, `product_code` | SKU format |
+
+### Schema composition
+
+Meridian supports OpenAPI schema composition keywords:
+
+**oneOf**: Randomly selects one schema from the list:
+
+```yaml
+pet:
+  oneOf:
+    - $ref: '#/components/schemas/Cat'
+    - $ref: '#/components/schemas/Dog'
+```
+
+**anyOf**: Randomly selects one schema (similar to oneOf for generation):
+
+```yaml
+notification:
+  anyOf:
+    - $ref: '#/components/schemas/EmailNotification'
+    - $ref: '#/components/schemas/SMSNotification'
+```
+
+**allOf**: Merges all schemas into a single object:
+
+```yaml
+employee:
+  allOf:
+    - $ref: '#/components/schemas/Person'
+    - type: object
+      properties:
+        employeeId:
+          type: string
+        department:
+          type: string
+```
 
 ## Validation
 

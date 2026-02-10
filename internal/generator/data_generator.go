@@ -11,39 +11,71 @@ import (
 
 // GenerateData generates data based on the provided OpenAPI schema.
 func GenerateData(schema *openapi3.SchemaRef) (interface{}, error) {
+	return GenerateDataWithFieldName(schema, "")
+}
+
+// GenerateDataWithFieldName generates data with semantic field detection.
+func GenerateDataWithFieldName(schema *openapi3.SchemaRef, fieldName string) (interface{}, error) {
 	if schema == nil || schema.Value == nil {
 		return nil, fmt.Errorf("schema is nil")
 	}
 
-	if schema.Value.Example != nil {
-		return schema.Value.Example, nil
+	s := schema.Value
+
+	if s.Example != nil {
+		return s.Example, nil
 	}
 
-	if len(schema.Value.Enum) > 0 {
-		return schema.Value.Enum[rand.Intn(len(schema.Value.Enum))], nil
+	// Handle oneOf
+	if len(s.OneOf) > 0 {
+		return GenerateFromOneOf(s.OneOf)
 	}
 
-	switch schema.Value.Type {
+	// Handle anyOf
+	if len(s.AnyOf) > 0 {
+		return GenerateFromAnyOf(s.AnyOf)
+	}
+
+	// Handle allOf
+	if len(s.AllOf) > 0 {
+		return GenerateFromAllOf(s.AllOf)
+	}
+
+	if len(s.Enum) > 0 {
+		return s.Enum[rand.Intn(len(s.Enum))], nil
+	}
+
+	// Try semantic detection for strings
+	if s.Type == "string" && fieldName != "" {
+		semanticType := DetectSemanticType(fieldName)
+		if semanticType != SemanticUnknown {
+			if value := GenerateBySemanticType(semanticType, s); value != nil {
+				return value, nil
+			}
+		}
+	}
+
+	switch s.Type {
 	case "string":
-		return generateString(schema.Value), nil
+		return generateString(s), nil
 	case "number", "integer":
-		return generateNumber(schema.Value), nil
+		return generateNumber(s), nil
 	case "boolean":
 		return faker.New().Bool(), nil
 	case "array":
-		data, err := generateArray(schema.Value)
+		data, err := generateArray(s)
 		if err != nil {
 			return nil, err
 		}
 		return data, nil
 	case "object":
-		data, err := generateObject(schema.Value)
+		data, err := generateObject(s)
 		if err != nil {
 			return nil, err
 		}
 		return data, nil
 	default:
-		return nil, fmt.Errorf("unsupported schema type: %s", schema.Value.Type)
+		return nil, fmt.Errorf("unsupported schema type: %s", s.Type)
 	}
 }
 
@@ -84,6 +116,14 @@ func GenerateExample(schema *openapi3.SchemaRef) (interface{}, error) {
 
 func generateString(schema *openapi3.Schema) string {
 	f := faker.New()
+
+	// Try pattern-based generation first
+	if schema.Pattern != "" {
+		if generated, err := GenerateFromPattern(schema.Pattern); err == nil {
+			return generated
+		}
+	}
+
 	switch schema.Format {
 	case "email":
 		return f.Internet().Email()
@@ -157,9 +197,9 @@ func generateObject(schema *openapi3.Schema) (map[string]interface{}, error) {
 	obj := make(map[string]interface{})
 	f := faker.New()
 
-	// Handle properties
+	// Handle properties with semantic field detection
 	for name, propSchema := range schema.Properties {
-		data, err := GenerateData(propSchema)
+		data, err := GenerateDataWithFieldName(propSchema, name)
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +208,9 @@ func generateObject(schema *openapi3.Schema) (map[string]interface{}, error) {
 
 	// Handle allOf (composition)
 	for _, allOfSchema := range schema.AllOf {
+		if allOfSchema.Value == nil {
+			continue
+		}
 		allOfObj, err := generateObject(allOfSchema.Value)
 		if err != nil {
 			return nil, err
@@ -177,23 +220,19 @@ func generateObject(schema *openapi3.Schema) (map[string]interface{}, error) {
 		}
 	}
 
-	// Handle discriminator (if applicable, though usually handled by external logic selecting the correct schema)
+	// Handle discriminator
 	if schema.Discriminator != nil && len(schema.Discriminator.Mapping) > 0 {
-		// For generation, pick one of the mapped types
-		for k, _ := range schema.Discriminator.Mapping {
-			// This is a simplification; in a real scenario, you'd resolve the ref
-			// and generate based on the actual schema. For now, just set the discriminator property.
+		for k := range schema.Discriminator.Mapping {
 			obj[schema.Discriminator.PropertyName] = k
-			break // Just pick the first one for now
+			break
 		}
 	}
 
 	// Handle additional properties
 	if schema.AdditionalProperties.Has != nil && *schema.AdditionalProperties.Has {
-		// Generate a few additional properties
 		for i := 0; i < f.IntBetween(1, 3); i++ {
 			key := f.Lorem().Word()
-			val, err := GenerateData(schema.AdditionalProperties.Schema)
+			val, err := GenerateDataWithFieldName(schema.AdditionalProperties.Schema, key)
 			if err != nil {
 				return nil, err
 			}
