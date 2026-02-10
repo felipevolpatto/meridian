@@ -1,0 +1,58 @@
+# Binaries
+meridian
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+coverage.html
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+tmp/
+tmp_server/
+*.tmp
+*.bak
+*.log
+
+# Local configuration (keep examples)
+/meridian.yaml
+/openapi.yaml
+/seed.json
+/seed_data.json
+
+# Node modules (web interface)
+node_modules/
+
+# Build output
+dist/
+build/

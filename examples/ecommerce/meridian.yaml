@@ -1,0 +1,48 @@
+# Meridian configuration for the e-commerce example
+openapi: openapi.yaml
+
+server:
+  address: localhost
+  port: 8080
+
+state:
+  persistence: ecommerce.db
+  seed: seed.json
+
+behavior:
+  latency:
+    enabled: true
+    min: 50
+    max: 200
+  errors:
+    enabled: false
+    rate: 0
+  cors:
+    enabled: true
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+      - X-Request-ID
+
+generation:
+  max_items: 20
+  locale: en_US
+
+relationships:
+  orders:
+    customer_id:
+      target: customers
+      type: many_to_one
+  order_items:
+    product_id:
+      target: products
+      type: many_to_one

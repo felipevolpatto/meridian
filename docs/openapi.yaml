@@ -1,0 +1,273 @@
+openapi: 3.0.0
+info:
+  title: Simple API
+  version: 1.0.0
+  description: A simple API with comprehensive validation examples
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        field:
+          type: string
+          description: Field that caused the error
+
+    User:
+      type: object
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          pattern: '^[a-zA-Z ]+$'
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        age:
+          type: integer
+          minimum: 18
+          maximum: 120
+        preferences:
+          type: object
+          properties:
+            newsletter:
+              type: boolean
+            theme:
+              type: string
+              enum: [light, dark]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+paths:
+  /users:
+    get:
+      summary: Get all users
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          required: false
+          description: Maximum number of users to return
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+          required: false
+          description: Number of users to skip
+        - in: header
+          name: Accept-Language
+          schema:
+            type: string
+            pattern: '^[a-z]{2}-[A-Z]{2}$'
+          required: false
+          description: Preferred language for response
+      responses:
+        '200':
+          description: A list of users
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+              description: Total number of users
+            X-Rate-Limit-Remaining:
+              schema:
+                type: integer
+              description: Number of requests remaining
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Create a new user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  pattern: '^[a-zA-Z ]+$'
+                email:
+                  type: string
+                  format: email
+                  maxLength: 100
+                age:
+                  type: integer
+                  minimum: 18
+                  maximum: 120
+                preferences:
+                  type: object
+                  properties:
+                    newsletter:
+                      type: boolean
+                    theme:
+                      type: string
+                      enum: [light, dark]
+      responses:
+        '201':
+          description: User created
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the created user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+          minimum: 1
+        required: true
+        description: Numeric ID of the user
+    get:
+      summary: Get user by ID
+      security:
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: User object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update user by ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  pattern: '^[a-zA-Z ]+$'
+                email:
+                  type: string
+                  format: email
+                  maxLength: 100
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete user by ID
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

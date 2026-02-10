@@ -1,0 +1,101 @@
+{
+  "customers": [
+    {
+      "id": "cust-001",
+      "name": "John Smith",
+      "email": "john.smith@example.com",
+      "phone": "+1-555-0101",
+      "addresses": [
+        {
+          "street": "123 Main Street",
+          "city": "New York",
+          "state": "NY",
+          "postal_code": "10001",
+          "country": "USA"
+        }
+      ]
+    },
+    {
+      "id": "cust-002",
+      "name": "Emily Davis",
+      "email": "emily.davis@example.com",
+      "phone": "+1-555-0102",
+      "addresses": [
+        {
+          "street": "456 Oak Avenue",
+          "city": "Los Angeles",
+          "state": "CA",
+          "postal_code": "90001",
+          "country": "USA"
+        }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-001",
+      "name": "Wireless Bluetooth Headphones",
+      "description": "High-quality wireless headphones with noise cancellation",
+      "price": 149.99,
+      "category": "electronics",
+      "stock": 50,
+      "sku": "ELE-000001"
+    },
+    {
+      "id": "prod-002",
+      "name": "Classic Cotton T-Shirt",
+      "description": "Comfortable 100% cotton t-shirt",
+      "price": 29.99,
+      "category": "clothing",
+      "stock": 200,
+      "sku": "CLO-000001"
+    },
+    {
+      "id": "prod-003",
+      "name": "JavaScript: The Good Parts",
+      "description": "Essential reading for JavaScript developers",
+      "price": 39.99,
+      "category": "books",
+      "stock": 75,
+      "sku": "BOK-000001"
+    },
+    {
+      "id": "prod-004",
+      "name": "Stainless Steel Water Bottle",
+      "description": "Eco-friendly reusable water bottle",
+      "price": 24.99,
+      "category": "home",
+      "stock": 150,
+      "sku": "HOM-000001"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ord-001",
+      "customer_id": "cust-001",
+      "items": [
+        {
+          "product_id": "prod-001",
+          "product_name": "Wireless Bluetooth Headphones",
+          "quantity": 1,
+          "price": 149.99
+        },
+        {
+          "product_id": "prod-003",
+          "product_name": "JavaScript: The Good Parts",
+          "quantity": 2,
+          "price": 39.99
+        }
+      ],
+      "status": "delivered",
+      "total": 229.97,
+      "shipping_address": {
+        "street": "123 Main Street",
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10001",
+        "country": "USA"
+      }
+    }
+  ]
+}

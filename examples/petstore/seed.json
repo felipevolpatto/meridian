@@ -1,0 +1,55 @@
+{
+  "owners": [
+    {
+      "id": "owner-001",
+      "name": "Alice Johnson",
+      "email": "alice@example.com",
+      "phone": "+1234567890",
+      "address": {
+        "street": "123 Main St",
+        "city": "Springfield",
+        "country": "USA"
+      }
+    },
+    {
+      "id": "owner-002",
+      "name": "Bob Williams",
+      "email": "bob@example.com",
+      "phone": "+0987654321",
+      "address": {
+        "street": "456 Oak Ave",
+        "city": "Portland",
+        "country": "USA"
+      }
+    }
+  ],
+  "pets": [
+    {
+      "id": "pet-001",
+      "name": "Buddy",
+      "species": "dog",
+      "breed": "Golden Retriever",
+      "age": 3,
+      "owner_id": "owner-001",
+      "vaccinated": true
+    },
+    {
+      "id": "pet-002",
+      "name": "Whiskers",
+      "species": "cat",
+      "breed": "Persian",
+      "age": 5,
+      "owner_id": "owner-001",
+      "vaccinated": true
+    },
+    {
+      "id": "pet-003",
+      "name": "Tweety",
+      "species": "bird",
+      "breed": "Canary",
+      "age": 2,
+      "owner_id": "owner-002",
+      "vaccinated": false
+    }
+  ]
+}

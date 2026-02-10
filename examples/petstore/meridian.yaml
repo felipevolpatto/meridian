@@ -1,0 +1,36 @@
+# Meridian configuration for the petstore example
+openapi: openapi.yaml
+
+server:
+  address: localhost
+  port: 8080
+
+state:
+  persistence: petstore.db
+  seed: seed.json
+
+behavior:
+  latency:
+    enabled: false
+    min: 0
+    max: 0
+  errors:
+    enabled: false
+    rate: 0
+  cors:
+    enabled: true
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+
+generation:
+  max_items: 10
+  locale: en_US

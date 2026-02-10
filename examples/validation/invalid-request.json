@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "path": "/users",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "name": "J",
+    "email": "not-an-email"
+  }
+}
