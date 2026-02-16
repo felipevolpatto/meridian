@@ -14,6 +14,7 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - [Examples](#examples)
 - [Data generation](#data-generation)
 - [Auto seeding](#auto-seeding)
+- [Hot reload](#hot-reload)
 - [Validation](#validation)
 - [Web interface](#web-interface)
 - [Development](#development)
@@ -41,10 +42,10 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - **Advanced data generation**: pattern-based generation (regex), `oneOf`/`anyOf`/`allOf` support, semantic field detection
 - **Nested resources**: support for routes like `/users/{userId}/posts`
 - **Auto seeding with relationships**: automatic seed data generation respecting referential integrity
+- **Hot reload**: `--watch` flag for automatic server restart on file changes
 
 ### In development
 
-- **Hot reload**: `--watch` flag for automatic server restart on file changes
 - **WebSocket support**: real-time state updates
 
 ## Installation
@@ -382,6 +383,7 @@ Flags:
 | `--spec` | `-s` | OpenAPI specification file |
 | `--reset` | | Reset state before starting |
 | `--no-seed` | | Skip loading seed data |
+| `--watch` | `-w` | Enable hot reload on file changes |
 
 Examples:
 
@@ -397,6 +399,9 @@ meridian start -s api/openapi.yaml
 
 # Start with fresh state
 meridian start --reset
+
+# Start with hot reload enabled
+meridian start --watch
 ```
 
 ### validate
@@ -844,6 +849,59 @@ Auto seeding only runs when:
 3. Auto seeding is enabled in configuration
 
 This means if you provide a `seed.json` file, it takes priority over auto seeding.
+
+## Hot reload
+
+Hot reload automatically restarts the server when configuration or specification files change. This is useful during development.
+
+### Enabling hot reload
+
+```bash
+meridian start --watch
+# or
+meridian start -w
+```
+
+### How it works
+
+1. **File watching**: monitors your `meridian.yaml`, OpenAPI spec, and seed file
+2. **Debouncing**: waits 500ms after the last change before reloading (prevents rapid restarts)
+3. **Graceful restart**: shuts down the current server and starts a new one with updated configuration
+4. **State preservation**: the SQLite database persists between reloads
+
+### Watched files
+
+The following files are automatically watched:
+
+- `meridian.yaml` - main configuration file
+- OpenAPI specification file (as configured in `meridian.yaml`)
+- Seed data file (if configured)
+
+### Console output
+
+When hot reload is enabled, you'll see:
+
+```
+Hot reload enabled, watching: [meridian.yaml openapi.yaml seed.json]
+Server started on http://localhost:8080
+```
+
+When a file changes:
+
+```
+File changed: openapi.yaml, triggering reload...
+Reloading server...
+Server reloaded successfully
+Server started on http://localhost:8080
+```
+
+### Error handling
+
+If a reload fails due to invalid configuration or spec:
+
+- The error is logged
+- The server continues with the previous valid configuration
+- You can fix the error and save again to trigger another reload
 
 ## Validation
 
