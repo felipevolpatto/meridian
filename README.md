@@ -13,6 +13,7 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - [API endpoints](#api-endpoints)
 - [Examples](#examples)
 - [Data generation](#data-generation)
+- [Auto seeding](#auto-seeding)
 - [Validation](#validation)
 - [Web interface](#web-interface)
 - [Development](#development)
@@ -38,12 +39,11 @@ Meridian is a mock server that generates realistic API responses based on OpenAP
 - **Latency simulation**: add artificial delays to responses
 - **Web interface**: built-in UI for state inspection and API testing
 - **Advanced data generation**: pattern-based generation (regex), `oneOf`/`anyOf`/`allOf` support, semantic field detection
-
 - **Nested resources**: support for routes like `/users/{userId}/posts`
+- **Auto seeding with relationships**: automatic seed data generation respecting referential integrity
 
 ### In development
 
-- **Auto seeding with relationships**: automatic seed data generation respecting referential integrity
 - **Hot reload**: `--watch` flag for automatic server restart on file changes
 - **WebSocket support**: real-time state updates
 
@@ -135,6 +135,13 @@ state:
   seed: seed.json
   max_items: 1000
   ttl: 24h
+
+  # Auto seeding configuration
+  auto_seed:
+    enabled: false
+    items_per_resource: 5
+    include_resources: []    # Empty means all resources
+    exclude_resources: []    # Resources to skip
 
 # Behavior settings
 behavior:
@@ -762,6 +769,81 @@ employee:
         department:
           type: string
 ```
+
+## Auto seeding
+
+Meridian can automatically generate seed data based on your OpenAPI specification, respecting relationships between resources.
+
+### Enabling auto seeding
+
+```yaml
+state:
+  auto_seed:
+    enabled: true
+    items_per_resource: 5
+```
+
+### How it works
+
+1. **Resource detection**: extracts resources from your API paths (`/users`, `/posts`, `/orders`)
+2. **Relationship detection**: identifies foreign keys based on naming conventions (`user_id`, `customer_id`)
+3. **Dependency ordering**: sorts resources topologically so parent resources are created first
+4. **Data generation**: generates items for each resource with valid foreign key references
+
+### Foreign key detection
+
+Meridian automatically detects foreign keys using these patterns:
+
+- `owner_id` references `owners` resource
+- `customer_id` references `customers` resource
+- `user_id` references `users` resource
+
+For a schema like:
+
+```yaml
+Order:
+  properties:
+    id:
+      type: string
+    customer_id:
+      type: string
+    status:
+      type: string
+```
+
+Meridian will:
+1. Generate `customers` first
+2. Generate `orders` with valid `customer_id` values referencing existing customers
+
+### Configuration options
+
+```yaml
+state:
+  auto_seed:
+    enabled: true
+    items_per_resource: 10        # Number of items to generate per resource
+    include_resources:            # Only generate these resources
+      - users
+      - posts
+    exclude_resources:            # Skip these resources
+      - audit_logs
+```
+
+### Include and exclude
+
+When both `include_resources` and `exclude_resources` are specified:
+- Exclusions are checked first
+- Then inclusions are applied
+- Empty `include_resources` means "all except excluded"
+
+### Seed priority
+
+Auto seeding only runs when:
+1. No existing data in the database
+2. No seed file is configured, or seed file loading fails
+3. Auto seeding is enabled in configuration
+
+This means if you provide a `seed.json` file, it takes priority over auto seeding.
 
 ## Validation
 

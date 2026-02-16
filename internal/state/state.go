@@ -7,22 +7,90 @@ import (
 	"os"
 	"time"
 
+	"github.com/felipevolpatto/meridian/internal/generator"
+	"github.com/getkin/kin-openapi/openapi3"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var globalManager *Manager
 
+// InitializeOptions contains options for state initialization
+type InitializeOptions struct {
+	DBPath           string
+	SeedPath         string
+	AutoSeedEnabled  bool
+	AutoSeedConfig   generator.AutoSeedConfig
+	Spec             *openapi3.T
+}
+
 func Initialize(dbPath string, seedPath string) error {
+	return InitializeWithOptions(InitializeOptions{
+		DBPath:   dbPath,
+		SeedPath: seedPath,
+	})
+}
+
+func InitializeWithOptions(opts InitializeOptions) error {
 	var err error
-	globalManager, err = New(dbPath)
+	globalManager, err = New(opts.DBPath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize state manager: %w", err)
 	}
 
-	if seedPath != "" {
-		if err := loadSeedFile(seedPath); err != nil {
-			fmt.Printf("Warning: failed to load seed data: %v\n", err)
+	// Check if there's existing data
+	hasData, err := globalManager.HasData()
+	if err != nil {
+		return fmt.Errorf("failed to check existing data: %w", err)
+	}
+
+	// Only seed if no existing data
+	if !hasData {
+		// Try loading seed file first
+		if opts.SeedPath != "" {
+			if err := loadSeedFile(opts.SeedPath); err != nil {
+				fmt.Printf("Warning: failed to load seed data: %v\n", err)
+			} else {
+				return nil
+			}
 		}
+
+		// Use auto seeding if enabled and spec is provided
+		if opts.AutoSeedEnabled && opts.Spec != nil {
+			if err := runAutoSeed(opts.Spec, opts.AutoSeedConfig); err != nil {
+				fmt.Printf("Warning: failed to auto-seed data: %v\n", err)
+			} else {
+				fmt.Println("Auto-generated seed data based on OpenAPI spec")
+			}
+		}
+	}
+
+	return nil
+}
+
+func runAutoSeed(spec *openapi3.T, config generator.AutoSeedConfig) error {
+	seeder := generator.NewAutoSeeder(spec, config)
+	seedData, err := seeder.Generate()
+	if err != nil {
+		return fmt.Errorf("failed to generate seed data: %w", err)
+	}
+
+	if len(seedData) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	importData := &ExportData{
+		Version:   "1.0",
+		Resources: seedData,
+		Timestamps: Timestamps{
+			ExportedAt: now,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		},
+	}
+
+	if err := globalManager.Import(importData, false); err != nil {
+		return fmt.Errorf("failed to import auto-generated seed data: %w", err)
 	}
 
 	return nil
@@ -147,6 +215,21 @@ func (m *Manager) Close() error {
 		return nil
 	}
 	return m.db.Close()
+}
+
+// HasData checks if there's any data in the database
+func (m *Manager) HasData() (bool, error) {
+	if m.db == nil {
+		return false, fmt.Errorf("database connection not initialized")
+	}
+
+	var count int
+	err := m.db.QueryRow("SELECT COUNT(*) FROM resources").Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to count resources: %w", err)
+	}
+
+	return count > 0, nil
 }
 
 func (m *Manager) Export() (*ExportData, error) {

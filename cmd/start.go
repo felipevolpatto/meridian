@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/felipevolpatto/meridian/internal/config"
+	"github.com/felipevolpatto/meridian/internal/generator"
 	"github.com/felipevolpatto/meridian/internal/openapi"
 	"github.com/felipevolpatto/meridian/internal/server"
 	"github.com/felipevolpatto/meridian/internal/state"
@@ -31,7 +32,26 @@ var startCmd = &cobra.Command{
 			log.Fatalf("Error parsing OpenAPI spec: %v", err)
 		}
 
-		if err := state.Initialize(cfg.State.Persistence, cfg.State.Seed); err != nil {
+		// Initialize state with auto-seeding support
+		initOpts := state.InitializeOptions{
+			DBPath:          cfg.State.Persistence,
+			SeedPath:        cfg.State.Seed,
+			AutoSeedEnabled: cfg.State.AutoSeed.Enabled,
+			Spec:            spec,
+		}
+
+		if cfg.State.AutoSeed.Enabled {
+			initOpts.AutoSeedConfig = generator.AutoSeedConfig{
+				ItemsPerResource: cfg.State.AutoSeed.ItemsPerResource,
+				IncludeResources: cfg.State.AutoSeed.IncludeResources,
+				ExcludeResources: cfg.State.AutoSeed.ExcludeResources,
+			}
+			if initOpts.AutoSeedConfig.ItemsPerResource <= 0 {
+				initOpts.AutoSeedConfig.ItemsPerResource = 5
+			}
+		}
+
+		if err := state.InitializeWithOptions(initOpts); err != nil {
 			log.Fatalf("Error initializing state: %v", err)
 		}
 

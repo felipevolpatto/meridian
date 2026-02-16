@@ -47,6 +47,24 @@ type StateConfig struct {
 
 	// Resource relationships configuration
 	Relationships map[string]ResourceRelationships `yaml:"relationships"`
+
+	// Auto seeding configuration
+	AutoSeed AutoSeedConfig `yaml:"auto_seed"`
+}
+
+// AutoSeedConfig represents auto seeding settings
+type AutoSeedConfig struct {
+	// Whether auto seeding is enabled
+	Enabled bool `yaml:"enabled"`
+
+	// Number of items to generate per resource
+	ItemsPerResource int `yaml:"items_per_resource"`
+
+	// Resources to include (empty means all)
+	IncludeResources []string `yaml:"include_resources"`
+
+	// Resources to exclude
+	ExcludeResources []string `yaml:"exclude_resources"`
 }
 
 // ResourceRelationships defines relationships for a resource
